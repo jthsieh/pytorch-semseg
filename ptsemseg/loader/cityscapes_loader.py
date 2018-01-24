@@ -44,7 +44,8 @@ class cityscapesLoader(data.Dataset):
     label_colours = dict(zip(range(19), colors))
 
     def __init__(self, root, split="train", is_transform=False, 
-                 img_size=(512, 1024), augmentations=None):
+                 img_size=(512, 1024), augmentations=None, gamma_augmentation=0,
+                 real_synthetic='real'):
         """__init__
 
         :param root:
@@ -57,13 +58,17 @@ class cityscapesLoader(data.Dataset):
         self.split = split
         self.is_transform = is_transform
         self.augmentations = augmentations
+        self.gamma_augmentation = gamma_augmentation
         self.n_classes = 19
         self.img_size = img_size if isinstance(img_size, tuple) else (img_size, img_size)
         self.mean = np.array([73.15835921, 82.90891754, 72.39239876])
         self.files = {}
+        # real or synthetic
+        self.real_synthetic = real_synthetic
 
         self.images_base = os.path.join(self.root, 'leftImg8bit', self.split)
-        self.annotations_base = os.path.join(self.root, 'gtFine_trainvaltest', 'gtFine', self.split)
+        self.annotations_base = os.path.join(self.root, 'gtFine', self.split)
+        self.synthetic_base = os.path.join(self.root, 'synthetic', self.split)
 
         self.files[split] = recursive_glob(rootdir=self.images_base, suffix='.png')
     
@@ -84,17 +89,34 @@ class cityscapesLoader(data.Dataset):
 
     def __len__(self):
         """__len__"""
-        return len(self.files[self.split])
+        # If real and synthetic, double the size
+        if self.real_synthetic == 'real+synthetic':
+          return len(self.files[self.split]) * 2
+        else:
+          return len(self.files[self.split])
 
     def __getitem__(self, index):
         """__getitem__
 
         :param index:
         """
+        use_synthetic = False
+        if self.real_synthetic == 'synthetic':
+          use_synthetic = True
+        elif index >= len(self.files[self.split]):
+          # Real+Synthetic data, use synthetic
+          use_synthetic = True
+          index = index - len(self.files[self.split])
+
         img_path = self.files[self.split][index].rstrip()
         lbl_path = os.path.join(self.annotations_base,
                                 img_path.split(os.sep)[-2], 
                                 os.path.basename(img_path)[:-15] + 'gtFine_labelIds.png')
+        syn_path = os.path.join(self.synthetic_base,
+                                img_path.split(os.sep)[-2],
+                                os.path.basename(img_path)[:-15] + 'synthetic.png')
+        if use_synthetic:
+          img_path = syn_path
 
         img = m.imread(img_path)
         img = np.array(img, dtype=np.uint8)
@@ -107,6 +129,12 @@ class cityscapesLoader(data.Dataset):
         
         if self.is_transform:
             img, lbl = self.transform(img, lbl)
+
+        if self.gamma_augmentation > 0:
+            gamma = np.random.uniform(-self.gamma_augmentation, self.gamma_augmentation)
+            gamma = np.log(0.5 + 1 / np.sqrt(2) * gamma) \
+                        / np.log(0.5 - 1 / np.sqrt(2) * gamma)
+            img ** gamma
 
         return img, lbl
 
