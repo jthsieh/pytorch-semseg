@@ -4,6 +4,7 @@ Misc Utility functions
 
 import os
 import numpy as np
+from collections import OrderedDict
 
 def recursive_glob(rootdir='.', suffix=''):
     """Performs recursive glob with given suffix and rootdir 
@@ -54,10 +55,9 @@ def convert_state_dict(state_dict):
        :param state_dict is the loaded DataParallel model_state
     
     """
-    
+    new_state_dict = OrderedDict()
     for k, v in state_dict.items():
         name = k[7:] # remove `module.`
-        state_dict[name] = v
-        del state_dict[k]
-    return state_dict
+        new_state_dict[name] = v
+    return new_state_dict
 

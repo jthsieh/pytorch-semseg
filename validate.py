@@ -1,3 +1,4 @@
+import os
 import sys
 import torch
 import visdom
@@ -22,7 +23,29 @@ torch.backends.cudnn.benchmark = True
 
 cudnn.benchmark = True
 
+classes = ['road',
+           'sidewalk',
+           'building',
+           'wall',
+           'fence',
+           'pole',
+           'traffic light',
+           'traffic sign',
+           'vegetation',
+           'terrain',
+           'sky',
+           'person',
+           'rider',
+           'car',
+           'truck',
+           'bus',
+           'train',
+           'motorcycle',
+           'bicycle'
+          ]
+
 def validate(args):
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
 
     # Setup Dataloader
     data_loader = get_loader(args.dataset)
@@ -33,7 +56,7 @@ def validate(args):
     running_metrics = runningScore(n_classes)
 
     # Setup Model
-    model = get_model(args.model_path[:args.model_path.find('_')], n_classes)
+    model = get_model(args.arch, n_classes)
     state = convert_state_dict(torch.load(args.model_path)['model_state'])
     model.load_state_dict(state)
     model.eval()
@@ -55,10 +78,12 @@ def validate(args):
         print(k, v)
 
     for i in range(n_classes):
-        print(i, class_iou[i])
+        print(i, classes[i], class_iou[i])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Hyperparams')
+    parser.add_argument('--arch', nargs='?', type=str, default='fcn8s',
+                        help='Architecture to use [\'fcn8s, unet, segnet etc\']')
     parser.add_argument('--model_path', nargs='?', type=str, default='fcn8s_pascal_1_26.pkl', 
                         help='Path to the saved model')
     parser.add_argument('--dataset', nargs='?', type=str, default='pascal', 
@@ -71,5 +96,6 @@ if __name__ == '__main__':
                         help='Batch Size')
     parser.add_argument('--split', nargs='?', type=str, default='val', 
                         help='Split of dataset to test on')
+    parser.add_argument('--gpus', nargs='?', type=str, default='0', help='GPUs')
     args = parser.parse_args()
     validate(args)

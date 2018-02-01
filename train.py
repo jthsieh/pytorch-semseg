@@ -142,8 +142,7 @@ if __name__ == '__main__':
                         help='Dataset to use [\'pascal, camvid, ade20k etc\']')
     parser.add_argument('--name', nargs='?', type=str, default='',
                         help='Name')
-    parser.add_argument('--gpus', nargs='?', type=str, default='0',
-                        help='GPUs')
+    parser.add_argument('--gpus', nargs='?', type=str, default='0', help='GPUs')
     parser.add_argument('--img_rows', nargs='?', type=int, default=256, 
                         help='Height of the input image')
     parser.add_argument('--img_cols', nargs='?', type=int, default=256, 
