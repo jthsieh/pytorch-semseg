@@ -57,8 +57,10 @@ def validate(args):
 
     # Setup Model
     model = get_model(args.arch, n_classes)
-    state = convert_state_dict(torch.load(args.model_path)['model_state'])
+    checkpoint = torch.load(args.model_path)
+    state = convert_state_dict(checkpoint['model_state'])
     model.load_state_dict(state)
+    print("Loaded checkpoint '{}' (epoch {})".format(args.model_path, checkpoint['epoch']))
     model.eval()
 
     for i, (images, labels) in tqdm(enumerate(valloader)):
@@ -79,6 +81,7 @@ def validate(args):
 
     for i in range(n_classes):
         print(i, classes[i], class_iou[i])
+    print('\t'.join([str(class_iou[i]) for i in range(n_classes)]))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Hyperparams')

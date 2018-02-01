@@ -112,9 +112,11 @@ class cityscapesLoader(data.Dataset):
         lbl_path = os.path.join(self.annotations_base,
                                 img_path.split(os.sep)[-2], 
                                 os.path.basename(img_path)[:-15] + 'gtFine_labelIds.png')
+        # Hack
+        syn_index = np.random.randint(5)
         syn_path = os.path.join(self.synthetic_base,
                                 img_path.split(os.sep)[-2],
-                                os.path.basename(img_path)[:-15] + 'synthetic.png')
+                                os.path.basename(img_path)[:-15] + 'synthetic_{}.png'.format(syn_index))
         if use_synthetic:
           img_path = syn_path
 
@@ -122,8 +124,11 @@ class cityscapesLoader(data.Dataset):
         img = np.array(img, dtype=np.uint8)
 
         lbl = m.imread(lbl_path)
+        if use_synthetic:
+          # resize mask
+          lbl = m.imresize(lbl, (img.shape[0], img.shape[1]), 'nearest', mode='F')
         lbl = self.encode_segmap(np.array(lbl, dtype=np.uint8))
-        
+
         if self.augmentations is not None:
             img, lbl = self.augmentations(img, lbl)
         
