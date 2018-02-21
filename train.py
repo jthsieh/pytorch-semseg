@@ -4,10 +4,12 @@ import torch
 import visdom
 import argparse
 import numpy as np
+import time
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 from torch.optim.lr_scheduler import StepLR
+from tensorboardX import SummaryWriter
 
 from torch.autograd import Variable
 from torch.utils import data
@@ -40,6 +42,19 @@ def train(args):
     n_classes = t_loader.n_classes
     trainloader = data.DataLoader(t_loader, batch_size=args.batch_size, num_workers=8, shuffle=True)
     valloader = data.DataLoader(v_loader, batch_size=args.batch_size, num_workers=8)
+
+    # Checkpoint
+    ckpt_dir = os.path.join(args.ckpt_dir, args.name)
+    os.makedirs(ckpt_dir, exist_ok=True)
+    tb_path = os.path.join(ckpt_dir, 'tb')
+    if os.path.exists(tb_path):
+      os.system('rm -r {}'.format(tb_path))
+    writer = SummaryWriter(tb_path)
+    log_path = os.path.join(ckpt_dir, 'train.log')
+    with open(log_path, 'w+') as f:
+      args_dict = vars(args)
+      for k in sorted(args_dict.keys()):
+        f.write('{}: {}\n'.format(k, str(args_dict[k])))
 
     # Setup Metrics
     running_metrics = runningScore(n_classes)
@@ -88,6 +103,7 @@ def train(args):
 
     best_iou = -100.0 
     for epoch in range(args.n_epoch):
+        epoch_start_time = time.time()
         scheduler.step()
         model.train()
         for i, (images, labels) in enumerate(trainloader):
@@ -112,6 +128,8 @@ def train(args):
             if (i+1) % 20 == 0:
                 print("Epoch [%d/%d] Loss: %.4f" % (epoch+1, args.n_epoch, loss.data[0]))
 
+        print("Epoch [{}/{}] done ({} sec)".format(epoch+1, args.n_epoch, int(time.time() - epoch_start_time)))
+
         model.eval()
         for i_val, (images_val, labels_val) in tqdm(enumerate(valloader)):
             images_val = Variable(images_val.cuda(), volatile=True)
@@ -127,12 +145,14 @@ def train(args):
             print(k, v)
         running_metrics.reset()
 
-        if score['Mean IoU : \t'] >= best_iou:
-            best_iou = score['Mean IoU : \t']
+        mean_iou = score['Mean IoU : \t']
+        writer.add_scalar('mean IoU', mean_iou, epoch)
+        if mean_iou >= best_iou:
+            best_iou = mean_iou
             state = {'epoch': epoch+1,
                      'model_state': model.state_dict(),
                      'optimizer_state' : optimizer.state_dict(),}
-            torch.save(state, "ckpt/{}_best_model.pkl".format(args.name))
+            torch.save(state, "{}/best_model.pkl".format(ckpt_dir))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Hyperparams')
@@ -140,6 +160,8 @@ if __name__ == '__main__':
                         help='Architecture to use [\'fcn8s, unet, segnet etc\']')
     parser.add_argument('--dataset', nargs='?', type=str, default='pascal', 
                         help='Dataset to use [\'pascal, camvid, ade20k etc\']')
+    parser.add_argument('--ckpt_dir', nargs='?', type=str, default='ckpt',
+                        help='Checkpoint directory')
     parser.add_argument('--name', nargs='?', type=str, default='',
                         help='Name')
     parser.add_argument('--gpus', nargs='?', type=str, default='0', help='GPUs')
