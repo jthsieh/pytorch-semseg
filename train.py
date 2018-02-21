@@ -24,19 +24,26 @@ from ptsemseg.augmentations import *
 def train(args):
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
+    assert len(args.gpus) // args.batch_size == 3, 'Each gpu must have 3'
 
     # Setup Augmentations
     data_aug= Compose([RandomRotate(10),                                        
                        RandomHorizontallyFlip()])
 
     # Setup Dataloader
-    data_loader = get_loader(args.dataset)
+    data_loader = get_loader('semi_cityscapes')
     data_path = get_data_path(args.dataset)
+    if args.subsample:
+      city_names = '[a-h]*'
+    else:
+      city_names = '*'
     t_loader = data_loader(data_path, is_transform=True,
                            img_size=(args.img_rows, args.img_cols),
                            augmentations=data_aug, gamma_augmentation=args.gamma,
-                           real_synthetic=args.real_synthetic)
-    v_loader = data_loader(data_path, is_transform=True, split='val', img_size=(args.img_rows, args.img_cols))
+                           city_names=city_names, real_synthetic=args.real_synthetic)
+    # Full val dataset
+    v_loader = data_loader(data_path, is_transform=True, split='val', img_size=(args.img_rows, args.img_cols),
+                           city_names='*')
     print("Training dataset size: {}".format(len(t_loader)))
 
     n_classes = t_loader.n_classes
@@ -188,5 +195,7 @@ if __name__ == '__main__':
     parser.add_argument('--real_synthetic', nargs='?', type=str, default='real',
                         choices=['real', 'synthetic', 'real+synthetic'],
                         help='Real, synthetic, or real+synthetic')
+    parser.add_argument('--subsample', nargs='?', type=int, default=0,
+                        choices=[0, 1], help='Subsample training set')
     args = parser.parse_args()
     train(args)

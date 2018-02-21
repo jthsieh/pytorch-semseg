@@ -267,7 +267,7 @@ class FRRU(nn.Module):
         y_prime = self.conv2(y_prime)
 
         x = self.conv_res(y_prime)
-        upsample_size = torch.Size([_s*self.scale for _s in y_prime.shape[-2:]])
+        upsample_size = torch.Size([_s*self.scale for _s in y_prime.size()[-2:]])
         x = F.upsample(x, size=upsample_size, mode='nearest')
         z_prime = z + x
 

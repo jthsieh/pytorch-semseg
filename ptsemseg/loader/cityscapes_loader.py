@@ -1,8 +1,8 @@
+import glob
 import os
 import torch
 import numpy as np
 import scipy.misc as m
-
 from torch.utils import data
 
 from ptsemseg.utils import recursive_glob
@@ -45,7 +45,7 @@ class cityscapesLoader(data.Dataset):
 
     def __init__(self, root, split="train", is_transform=False, 
                  img_size=(512, 1024), augmentations=None, gamma_augmentation=0,
-                 real_synthetic='real'):
+                 city_names='*'):
         """__init__
 
         :param root:
@@ -63,14 +63,11 @@ class cityscapesLoader(data.Dataset):
         self.img_size = img_size if isinstance(img_size, tuple) else (img_size, img_size)
         self.mean = np.array([73.15835921, 82.90891754, 72.39239876])
         self.files = {}
-        # real or synthetic
-        self.real_synthetic = real_synthetic
 
         self.images_base = os.path.join(self.root, 'leftImg8bit', self.split)
         self.annotations_base = os.path.join(self.root, 'gtFine', self.split)
-        self.synthetic_base = os.path.join(self.root, 'synthetic', self.split)
 
-        self.files[split] = recursive_glob(rootdir=self.images_base, suffix='.png')
+        self.files[split] = glob.glob(os.path.join(self.images_base, city_names, '*.png'))
     
         self.void_classes = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1]
         self.valid_classes = [7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33]
@@ -89,57 +86,35 @@ class cityscapesLoader(data.Dataset):
 
     def __len__(self):
         """__len__"""
-        # If real and synthetic, double the size
-        if self.real_synthetic == 'real+synthetic':
-          return len(self.files[self.split]) * 2
-        else:
-          return len(self.files[self.split])
+        return len(self.files[self.split])
 
     def __getitem__(self, index):
         """__getitem__
 
         :param index:
         """
-        use_synthetic = False
-        if self.real_synthetic == 'synthetic':
-          use_synthetic = True
-        elif index >= len(self.files[self.split]):
-          # Real+Synthetic data, use synthetic
-          use_synthetic = True
-          index = index - len(self.files[self.split])
-
         img_path = self.files[self.split][index].rstrip()
         lbl_path = os.path.join(self.annotations_base,
                                 img_path.split(os.sep)[-2], 
                                 os.path.basename(img_path)[:-15] + 'gtFine_labelIds.png')
-        # Hack
-        syn_index = np.random.randint(5)
-        syn_path = os.path.join(self.synthetic_base,
-                                img_path.split(os.sep)[-2],
-                                os.path.basename(img_path)[:-15] + 'synthetic_{}.png'.format(syn_index))
-        if use_synthetic:
-          img_path = syn_path
 
         img = m.imread(img_path)
         img = np.array(img, dtype=np.uint8)
 
         lbl = m.imread(lbl_path)
-        if use_synthetic:
-          # resize mask
-          lbl = m.imresize(lbl, (img.shape[0], img.shape[1]), 'nearest', mode='F')
         lbl = self.encode_segmap(np.array(lbl, dtype=np.uint8))
-
+        
         if self.augmentations is not None:
             img, lbl = self.augmentations(img, lbl)
-        
+
         if self.is_transform:
             img, lbl = self.transform(img, lbl)
 
         if self.gamma_augmentation > 0:
-            gamma = np.random.uniform(-self.gamma_augmentation, self.gamma_augmentation)
-            gamma = np.log(0.5 + 1 / np.sqrt(2) * gamma) \
-                        / np.log(0.5 - 1 / np.sqrt(2) * gamma)
-            img ** gamma
+          gamma = np.random.uniform(-self.gamma_augmentation, self.gamma_augmentation)
+          gamma = np.log(0.5 + 1 / np.sqrt(2) * gamma) \
+                      / np.log(0.5 - 1 / np.sqrt(2) * gamma)
+          img ** gamma
 
         return img, lbl
 
